@@ -8,7 +8,6 @@ services:
       # Optional: protect the UI when exposed beyond your LAN
       # AUTH_USERNAME: admin
       # AUTH_PASSWORD: change-me
-      # Leave unset to auto-detect; Debian package uses /usr/lib/android-sdk/platform-tools/adb
       ADB_PATH: /usr/local/bin/adb
     # Host network lets the container reach TVs on your LAN (recommended for ADB)
     network_mode: host
