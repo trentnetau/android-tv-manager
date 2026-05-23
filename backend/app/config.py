@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     auth_username: str = ""
     auth_password: str = ""
     upload_dir: str = "/tmp/android-tv-uploads"
+    # Override if needed (Docker sets /app/frontend/dist)
+    static_dir: str = ""
 
 
 settings = Settings()

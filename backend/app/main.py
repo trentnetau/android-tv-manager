@@ -21,7 +21,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-STATIC_DIR = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+def _resolve_static_dir() -> Path:
+    if settings.static_dir:
+        return Path(settings.static_dir)
+    here = Path(__file__).resolve().parent
+    for candidate in (
+        here.parent / "frontend" / "dist",  # Docker: /app/frontend/dist
+        here.parent.parent / "frontend" / "dist",  # Dev: repo/frontend/dist
+    ):
+        if (candidate / "index.html").is_file():
+            return candidate
+    return here.parent / "frontend" / "dist"
+
+
+STATIC_DIR = _resolve_static_dir()
 UPLOAD_DIR = Path(settings.upload_dir)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -14,6 +14,7 @@ COPY frontend/dist ./frontend/dist
 
 ENV ADB_PATH=/usr/bin/adb
 ENV UPLOAD_DIR=/tmp/android-tv-uploads
+ENV STATIC_DIR=/app/frontend/dist
 
 EXPOSE 8080
 

@@ -108,6 +108,7 @@ If you cannot use host networking, run the backend on the host instead of Docker
 
 ## Troubleshooting
 
+- **Browser shows only `{"message":"Android TV Manager API"...}`**: The UI files were not found. Ensure `frontend/dist/` (with `index.html`, `app.js`, `styles.css`) is in your Git repo, redeploy/rebuild the stack, and set `STATIC_DIR=/app/frontend/dist` in the container environment.
 - **Connection refused**: TV debugging off, wrong IP, or firewall on TV/router.
 - **Device unauthorized**: Check TV screen for prompt; run `adb kill-server` and reconnect.
 - **empty device list after connect**: Wait a few seconds and click **Refresh devices**.
