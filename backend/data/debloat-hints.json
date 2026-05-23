@@ -1,0 +1,21 @@
+{
+  "_comment": "Reference only — verify on your device before disabling. Package names vary by OEM and Android version.",
+  "common_tv_bloat_examples": [
+    "com.netflix.ninja",
+    "com.amazon.amazonvideo.livingroom",
+    "com.disney.disneyplus",
+    "com.google.android.youtube.tv",
+    "com.google.android.play.games"
+  ],
+  "often_safe_to_disable_on_google_tv": [
+    "com.google.android.youtube.tv",
+    "com.google.android.play.games",
+    "com.google.android.videos"
+  ],
+  "never_disable_without_research": [
+    "com.google.android.tvlauncher",
+    "com.google.android.gms",
+    "com.android.systemui",
+    "com.google.android.tv.remote.service"
+  ]
+}

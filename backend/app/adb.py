@@ -1,0 +1,234 @@
+import re
+import shutil
+import subprocess
+from dataclasses import dataclass
+from pathlib import Path
+
+from app.config import settings
+
+
+class AdbError(Exception):
+    def __init__(self, message: str, *, stdout: str = "", stderr: str = "", returncode: int = 1):
+        super().__init__(message)
+        self.stdout = stdout
+        self.stderr = stderr
+        self.returncode = returncode
+
+
+@dataclass
+class Device:
+    serial: str
+    state: str
+    product: str | None = None
+    model: str | None = None
+    device: str | None = None
+
+
+def _adb_bin() -> str:
+    path = settings.adb_path
+    if path != "adb" and not Path(path).exists():
+        raise AdbError(f"ADB not found at {path}")
+    if path == "adb" and not shutil.which("adb"):
+        raise AdbError(
+            "ADB not found in PATH. Install Android platform-tools or set ADB_PATH."
+        )
+    return path
+
+
+def run_adb(
+    *args: str,
+    serial: str | None = None,
+    timeout: int | None = None,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    cmd = [_adb_bin()]
+    if serial:
+        cmd.extend(["-s", serial])
+    cmd.extend(args)
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout or settings.command_timeout_sec,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise AdbError(f"ADB timed out after {timeout or settings.command_timeout_sec}s") from exc
+    except FileNotFoundError as exc:
+        raise AdbError("ADB executable missing") from exc
+
+    if check and result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip() or "Unknown ADB error"
+        raise AdbError(detail, stdout=result.stdout, stderr=result.stderr, returncode=result.returncode)
+    return result
+
+
+def parse_devices(output: str) -> list[Device]:
+    devices: list[Device] = []
+    for line in output.splitlines()[1:]:
+        line = line.strip()
+        if not line:
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        serial, state = parts[0], parts[1]
+        props: dict[str, str] = {}
+        if len(parts) > 2:
+            for chunk in parts[2:]:
+                if ":" in chunk:
+                    key, _, value = chunk.partition(":")
+                    props[key] = value
+        devices.append(
+            Device(
+                serial=serial,
+                state=state,
+                product=props.get("product"),
+                model=props.get("model"),
+                device=props.get("device"),
+            )
+        )
+    return devices
+
+
+def list_devices() -> list[Device]:
+    result = run_adb("devices", "-l")
+    return parse_devices(result.stdout)
+
+
+def connect(host: str, port: int = 5555) -> str:
+    target = f"{host}:{port}"
+    result = run_adb(
+        "connect",
+        target,
+        timeout=settings.adb_connect_timeout_sec,
+        check=False,
+    )
+    message = (result.stdout or result.stderr or "").strip()
+    if result.returncode != 0 and "connected" not in message.lower():
+        raise AdbError(message or "Failed to connect", stdout=result.stdout, stderr=result.stderr)
+    return message
+
+
+def disconnect(target: str | None = None) -> str:
+    args = ["disconnect"]
+    if target:
+        args.append(target)
+    result = run_adb(*args, check=False)
+    return (result.stdout or result.stderr or "disconnected").strip()
+
+
+def get_prop(serial: str, name: str) -> str:
+    result = run_adb("-s", serial, "shell", "getprop", name, check=False)
+    return (result.stdout or "").strip()
+
+
+def device_info(serial: str) -> dict[str, str]:
+    keys = [
+        "ro.product.manufacturer",
+        "ro.product.model",
+        "ro.product.name",
+        "ro.build.version.release",
+        "ro.build.version.sdk",
+        "ro.build.display.id",
+    ]
+    info = {"serial": serial}
+    for key in keys:
+        short = key.rsplit(".", 1)[-1]
+        info[short] = get_prop(serial, key)
+    return info
+
+
+def list_packages(
+    serial: str,
+    *,
+    third_party_only: bool = False,
+    disabled_only: bool = False,
+    filter_text: str = "",
+) -> list[dict[str, str]]:
+    args = ["shell", "pm", "list", "packages"]
+    if third_party_only:
+        args.append("-3")
+    if disabled_only:
+        args.append("-d")
+    result = run_adb(*args, serial=serial)
+
+    packages: list[dict[str, str]] = []
+    needle = filter_text.lower().strip()
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("package:"):
+            continue
+        pkg = line.removeprefix("package:").strip()
+        if needle and needle not in pkg.lower():
+            continue
+        packages.append({"package": pkg})
+    packages.sort(key=lambda p: p["package"])
+    return packages
+
+
+def package_label(serial: str, package: str) -> str:
+    result = run_adb(
+        "shell",
+        "dumpsys",
+        "package",
+        package,
+        serial=serial,
+        check=False,
+    )
+    match = re.search(r"applicationLabel=([^\n\r]+)", result.stdout)
+    if match:
+        return match.group(1).strip()
+    return package
+
+
+def disable_package(serial: str, package: str, user_id: int = 0) -> str:
+    result = run_adb(
+        "shell",
+        "pm",
+        "disable-user",
+        "--user",
+        str(user_id),
+        package,
+        serial=serial,
+    )
+    return (result.stdout or result.stderr or "disabled").strip()
+
+
+def enable_package(serial: str, package: str, user_id: int = 0) -> str:
+    result = run_adb(
+        "shell",
+        "pm",
+        "enable",
+        "--user",
+        str(user_id),
+        package,
+        serial=serial,
+    )
+    return (result.stdout or result.stderr or "enabled").strip()
+
+
+def uninstall_package(serial: str, package: str, user_id: int = 0) -> str:
+    result = run_adb(
+        "shell",
+        "pm",
+        "uninstall",
+        "--user",
+        str(user_id),
+        package,
+        serial=serial,
+    )
+    return (result.stdout or result.stderr or "ok").strip()
+
+
+def install_apk(serial: str, apk_path: Path) -> str:
+    result = run_adb("install", "-r", str(apk_path), serial=serial, timeout=300)
+    return (result.stdout or result.stderr or "Success").strip()
+
+
+def shell(serial: str, command: str) -> str:
+    result = run_adb("shell", command, serial=serial, check=False)
+    output = (result.stdout or "") + (result.stderr or "")
+    if result.returncode != 0 and not output.strip():
+        raise AdbError(f"Shell failed (code {result.returncode})")
+    return output
