@@ -25,14 +25,34 @@ class Device:
 
 
 def _adb_bin() -> str:
-    path = settings.adb_path
-    if path != "adb" and not Path(path).exists():
-        raise AdbError(f"ADB not found at {path}")
-    if path == "adb" and not shutil.which("adb"):
-        raise AdbError(
-            "ADB not found in PATH. Install Android platform-tools or set ADB_PATH."
-        )
-    return path
+    candidates: list[str] = []
+    if settings.adb_path and settings.adb_path != "adb":
+        candidates.append(settings.adb_path)
+    candidates.extend(
+        [
+            "adb",
+            "/usr/local/bin/adb",
+            "/usr/bin/adb",
+            "/usr/lib/android-sdk/platform-tools/adb",
+            "/opt/platform-tools/adb",
+        ]
+    )
+    seen: set[str] = set()
+    for path in candidates:
+        if path in seen:
+            continue
+        seen.add(path)
+        if path == "adb":
+            found = shutil.which("adb")
+            if found:
+                return found
+            continue
+        if Path(path).is_file():
+            return path
+    raise AdbError(
+        "ADB not found. Install android-sdk-platform-tools or set ADB_PATH "
+        "(e.g. /usr/lib/android-sdk/platform-tools/adb)."
+    )
 
 
 def run_adb(

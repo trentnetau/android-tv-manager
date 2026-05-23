@@ -2,6 +2,9 @@ FROM python:3.12-slim-bookworm
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends android-sdk-platform-tools \
+    && ln -sf /usr/lib/android-sdk/platform-tools/adb /usr/local/bin/adb \
+    && ln -sf /usr/lib/android-sdk/platform-tools/fastboot /usr/local/bin/fastboot \
+    && adb version \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -12,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app ./app
 COPY frontend/dist ./frontend/dist
 
-ENV ADB_PATH=/usr/bin/adb
+ENV ADB_PATH=/usr/local/bin/adb
 ENV UPLOAD_DIR=/tmp/android-tv-uploads
 ENV STATIC_DIR=/app/frontend/dist
 

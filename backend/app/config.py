@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # "adb" = search PATH; Docker sets /usr/local/bin/adb
     adb_path: str = "adb"
     adb_connect_timeout_sec: int = 15
     command_timeout_sec: int = 120
