@@ -106,6 +106,62 @@ Interactive docs: `http://localhost:8080/docs`
 
 If you cannot use host networking, run the backend on the host instead of Docker, or attach the container to a Macvlan/IPvlan network on the same subnet as the TV. Standard bridge networking usually **cannot** reach `192.168.x.x` on your LAN.
 
+## Ubuntu Core (snap Docker)
+
+Ubuntu Core runs Docker as a **snap**, which adds a few requirements for ADB to reach your TV on the LAN.
+
+### 1. Allow Docker snap to use the network
+
+On the Ubuntu Core host (SSH or console):
+
+```bash
+sudo snap connect docker:network-control
+sudo snap connect docker:network-bind
+```
+
+If connect still fails after that:
+
+```bash
+sudo snap connect docker:firewall-control
+```
+
+### 2. Keep `network_mode: host` in your stack
+
+Host networking is required so the container can `adb connect` to `192.168.x.x` on your LAN. Bridge-only stacks on snap Docker usually cannot reach the TV.
+
+### 3. Fix `ADB_PATH` and rebuild
+
+In Portainer → stack **Environment**, use:
+
+```yaml
+ADB_PATH: /usr/local/bin/adb
+STATIC_DIR: /app/frontend/dist
+```
+
+Do **not** use `/usr/bin/adb`. Then **rebuild** the stack image (not just restart).
+
+### 4. Verify from the host and container
+
+```bash
+# Can the VM/Core device reach the TV?
+ping -c 2 192.168.1.50
+
+# Is ADB working inside the container?
+docker exec android-tv-manager adb version
+docker exec android-tv-manager adb connect 192.168.1.50:5555
+docker exec android-tv-manager adb devices
+```
+
+Check the API: `http://YOUR_IP:8080/api/health` should show `"adb": "available"`.
+
+### 5. Portainer / stack files on Ubuntu Core
+
+Writable locations are limited. Store git clones or compose files under a writable path (often `$HOME` or `/var/snap/...`), not on read-only system paths.
+
+### 6. If LAN access still fails (snap confinement)
+
+As a fallback, install ADB on the **host** and point the container at the host’s ADB server (advanced). Easier fix: ensure the Ubuntu Core VM uses **bridged** networking to your LAN (same subnet as the TV), not NAT-only.
+
 ## Troubleshooting
 
 - **`ADB not found at /usr/bin/adb`**: Wrong path in Portainer/stack env. Remove `ADB_PATH` or set `ADB_PATH=/usr/local/bin/adb`, then rebuild the image.

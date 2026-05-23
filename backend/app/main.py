@@ -68,10 +68,10 @@ class ShellRequest(BaseModel):
 @app.get("/api/health")
 def health(_: None = Depends(require_auth)):
     try:
-        adb.run_adb("version", timeout=10)
-        return {"status": "ok", "adb": "available"}
+        version = adb.run_adb("version", timeout=10).stdout.strip().splitlines()[0]
+        return {"status": "ok", "adb": "available", "adb_path": adb.adb_executable(), "version": version}
     except adb.AdbError as exc:
-        return {"status": "degraded", "adb": str(exc)}
+        return {"status": "degraded", "adb": str(exc), "adb_path": settings.adb_path}
 
 
 @app.get("/api/devices")

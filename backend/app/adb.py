@@ -24,6 +24,11 @@ class Device:
     device: str | None = None
 
 
+def adb_executable() -> str:
+    """Resolved path to the adb binary (for diagnostics)."""
+    return _adb_bin()
+
+
 def _adb_bin() -> str:
     candidates: list[str] = []
     if settings.adb_path and settings.adb_path != "adb":
