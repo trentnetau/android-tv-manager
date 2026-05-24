@@ -282,22 +282,22 @@ def list_packages_enriched(
     elif app_type == "user":
         type_flags = ("-3",)
 
-    status_flags: tuple[str, ...] = ()
-    if status == "enabled":
-        status_flags = ("-e",)
-    elif status == "disabled":
-        status_flags = ("-d",)
-    elif status == "uninstalled":
-        status_flags = ("-u",)
+    installed = _pm_package_set(serial, *type_flags)
+    including_uninstalled = _pm_package_set(serial, "-u", *type_flags)
+    uninstalled_only = including_uninstalled - installed
 
-    selected = _pm_package_set(serial, *type_flags, *status_flags)
-
-    if status == "all" and not status_flags:
-        selected = _pm_package_set(serial, *type_flags)
-
+    disabled_packages = _pm_package_set(serial, "-d", *type_flags)
     system_packages = _pm_package_set(serial, "-s")
-    disabled_packages = _pm_package_set(serial, "-d")
-    uninstalled_packages = _pm_package_set(serial, "-u")
+
+    if status == "enabled":
+        selected = _pm_package_set(serial, "-e", *type_flags)
+    elif status == "disabled":
+        selected = disabled_packages
+    elif status == "uninstalled":
+        selected = uninstalled_only
+    else:
+        # "all" = installed packages only (excludes uninstalled-for-user)
+        selected = installed
 
     labels: dict[str, str] = {}
     if include_labels:
@@ -305,7 +305,7 @@ def list_packages_enriched(
 
     results: list[dict[str, str | bool]] = []
     for pkg in sorted(selected):
-        if pkg in uninstalled_packages:
+        if pkg in uninstalled_only:
             pkg_status = "uninstalled"
         elif pkg in disabled_packages:
             pkg_status = "disabled"

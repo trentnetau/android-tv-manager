@@ -249,10 +249,35 @@ button.small {
 }
 
 .table-wrap {
-  max-height: 420px;
+  max-height: 480px;
   overflow: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+
+#pkg-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+#pkg-table col.col-app {
+  width: 14%;
+}
+
+#pkg-table col.col-package {
+  width: 36%;
+}
+
+#pkg-table col.col-type {
+  width: 8%;
+}
+
+#pkg-table col.col-status {
+  width: 10%;
+}
+
+#pkg-table col.col-actions {
+  width: 32%;
 }
 
 table {
@@ -266,6 +291,7 @@ td {
   text-align: left;
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
+  vertical-align: middle;
 }
 
 th {
@@ -280,10 +306,26 @@ td code {
   word-break: break-all;
 }
 
+td.col-package code {
+  display: block;
+  line-height: 1.35;
+}
+
 .actions {
   display: flex;
   gap: 0.35rem;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.actions button {
+  flex-shrink: 0;
+}
+
+button.btn-restore {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .muted {

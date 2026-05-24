@@ -109,15 +109,15 @@ function typeBadge(type) {
 }
 
 function actionButtons(pkg) {
-  const buttons = [];
-  if (pkg.status === "enabled") {
-    buttons.push(`<button class="small" data-action="disable" data-pkg="${pkg.package}">Disable</button>`);
-    buttons.push(`<button class="danger" data-action="uninstall" data-pkg="${pkg.package}">Uninstall</button>`);
-  } else if (pkg.status === "disabled") {
-    buttons.push(`<button class="small" data-action="enable" data-pkg="${pkg.package}">Enable</button>`);
-    buttons.push(`<button class="danger" data-action="uninstall" data-pkg="${pkg.package}">Uninstall</button>`);
-  } else if (pkg.status === "uninstalled") {
-    buttons.push(`<button class="small" data-action="restore" data-pkg="${pkg.package}">Restore</button>`);
+  const buttons = [
+    `<button class="small" data-action="enable" data-pkg="${pkg.package}">Enable</button>`,
+    `<button class="small" data-action="disable" data-pkg="${pkg.package}">Disable</button>`,
+    `<button class="danger" data-action="uninstall" data-pkg="${pkg.package}">Uninstall</button>`,
+  ];
+  if (pkg.status === "uninstalled") {
+    buttons.unshift(
+      `<button class="small btn-restore" data-action="restore" data-pkg="${pkg.package}">Restore</button>`
+    );
   }
   return buttons.join("");
 }
@@ -151,7 +151,7 @@ async function loadPackages() {
         (p) => `
     <tr>
       <td><strong>${escapeHtml(p.label)}</strong></td>
-      <td><code>${escapeHtml(p.package)}</code></td>
+      <td class="col-package"><code>${escapeHtml(p.package)}</code></td>
       <td>${typeBadge(p.type)}</td>
       <td>${statusBadge(p.status)}</td>
       <td class="actions">${actionButtons(p)}</td>
