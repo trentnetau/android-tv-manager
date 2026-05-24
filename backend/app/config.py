@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     adb_path: str = "adb"
     adb_connect_timeout_sec: int = 15
     command_timeout_sec: int = 120
+    package_dumpsys_timeout_sec: int = 180
     # Optional HTTP basic auth (leave empty to disable)
     auth_username: str = ""
     auth_password: str = ""

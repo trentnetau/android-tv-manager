@@ -90,13 +90,63 @@ label.grow {
 input[type="text"],
 input[type="number"],
 input[type="search"],
-input[type="file"] {
+input[type="file"],
+select {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
   border-radius: 6px;
   padding: 0.5rem 0.65rem;
   font-size: 0.95rem;
+}
+
+.filters label {
+  min-width: 120px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.badge-enabled {
+  background: rgba(76, 175, 130, 0.15);
+  color: var(--success);
+}
+
+.badge-disabled {
+  background: rgba(255, 183, 77, 0.15);
+  color: #ffb74d;
+}
+
+.badge-uninstalled {
+  background: rgba(139, 156, 179, 0.15);
+  color: var(--muted);
+}
+
+.badge-type {
+  background: rgba(61, 156, 245, 0.12);
+  color: var(--accent);
+}
+
+.loading {
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin: 0.25rem 0 0.5rem;
+}
+
+td strong {
+  font-weight: 600;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .checkbox {

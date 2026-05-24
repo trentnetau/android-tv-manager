@@ -123,22 +123,26 @@ def device_info(serial: str, _: None = Depends(require_auth)):
 @app.get("/api/device/{serial}/packages")
 def packages(
     serial: str,
+    status: str = "all",
+    app_type: str = "all",
+    q: str = "",
+    refresh_labels: bool = False,
     third_party: bool = False,
     disabled: bool = False,
-    q: str = "",
-    labels: bool = False,
     _: None = Depends(require_auth),
 ):
     try:
-        pkgs = adb.list_packages(
+        if third_party:
+            app_type = "user"
+        if disabled:
+            status = "disabled"
+        pkgs = adb.list_packages_enriched(
             serial,
-            third_party_only=third_party,
-            disabled_only=disabled,
+            status=status,
+            app_type=app_type,
             filter_text=q,
+            refresh_labels=refresh_labels,
         )
-        if labels and len(pkgs) <= 200:
-            for entry in pkgs:
-                entry["label"] = adb.package_label(serial, entry["package"])
         return {"packages": pkgs, "count": len(pkgs)}
     except adb.AdbError as exc:
         raise HTTPException(502, str(exc)) from exc
@@ -166,6 +170,15 @@ def enable_pkg(body: PackageActionRequest, _: None = Depends(require_auth)):
 def uninstall_pkg(body: PackageActionRequest, _: None = Depends(require_auth)):
     try:
         result = adb.uninstall_package(body.serial, body.package)
+        return {"result": result}
+    except adb.AdbError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
+@app.post("/api/package/restore")
+def restore_pkg(body: PackageActionRequest, _: None = Depends(require_auth)):
+    try:
+        result = adb.restore_package(body.serial, body.package)
         return {"result": result}
     except adb.AdbError as exc:
         raise HTTPException(502, str(exc)) from exc

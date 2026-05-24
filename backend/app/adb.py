@@ -164,6 +164,77 @@ def device_info(serial: str) -> dict[str, str]:
     return info
 
 
+def _parse_pkg_line(line: str) -> str | None:
+    line = line.strip()
+    if not line.startswith("package:"):
+        return None
+    return line.removeprefix("package:").strip()
+
+
+def _pm_package_set(serial: str, *flags: str) -> set[str]:
+    args = ["shell", "pm", "list", "packages", *flags]
+    result = run_adb(*args, serial=serial)
+    packages: set[str] = set()
+    for line in result.stdout.splitlines():
+        pkg = _parse_pkg_line(line)
+        if pkg:
+            packages.add(pkg)
+    return packages
+
+
+def humanize_package_name(package: str) -> str:
+    """Best-effort friendly name when the device does not expose a label."""
+    tail = package.rsplit(".", 1)[-1].replace("_", " ").strip()
+    return tail.title() if tail else package
+
+
+_label_cache: dict[str, dict[str, str]] = {}
+
+
+def invalidate_label_cache(serial: str) -> None:
+    _label_cache.pop(serial, None)
+
+
+def _parse_labels_from_dumpsys(output: str) -> dict[str, str]:
+    labels: dict[str, str] = {}
+    current_pkg: str | None = None
+    for line in output.splitlines():
+        pkg_match = re.match(r"^\s*Package \[([^\]]+)\]", line)
+        if pkg_match:
+            current_pkg = pkg_match.group(1).strip()
+            continue
+        if not current_pkg:
+            continue
+        for pattern in (
+            r"applicationLabel=([^\n\r]+)",
+            r"nonLocalizedLabel=([^\n\r]+)",
+        ):
+            match = re.search(pattern, line)
+            if match:
+                label = match.group(1).strip()
+                if label and label not in ("null", "None"):
+                    labels[current_pkg] = label
+                break
+    return labels
+
+
+def fetch_package_labels(serial: str, *, force: bool = False) -> dict[str, str]:
+    if not force and serial in _label_cache:
+        return _label_cache[serial]
+    result = run_adb(
+        "shell",
+        "dumpsys",
+        "package",
+        "packages",
+        serial=serial,
+        timeout=settings.package_dumpsys_timeout_sec,
+        check=False,
+    )
+    labels = _parse_labels_from_dumpsys(result.stdout or "")
+    _label_cache[serial] = labels
+    return labels
+
+
 def list_packages(
     serial: str,
     *,
@@ -181,15 +252,84 @@ def list_packages(
     packages: list[dict[str, str]] = []
     needle = filter_text.lower().strip()
     for line in result.stdout.splitlines():
-        line = line.strip()
-        if not line.startswith("package:"):
+        pkg = _parse_pkg_line(line)
+        if not pkg:
             continue
-        pkg = line.removeprefix("package:").strip()
         if needle and needle not in pkg.lower():
             continue
         packages.append({"package": pkg})
     packages.sort(key=lambda p: p["package"])
     return packages
+
+
+def list_packages_enriched(
+    serial: str,
+    *,
+    status: str = "all",
+    app_type: str = "all",
+    filter_text: str = "",
+    include_labels: bool = True,
+    refresh_labels: bool = False,
+) -> list[dict[str, str | bool]]:
+    """List packages with human labels, system/user type, and enabled/disabled/uninstalled state."""
+    status = status.lower().strip()
+    app_type = app_type.lower().strip()
+    needle = filter_text.lower().strip()
+
+    type_flags: tuple[str, ...] = ()
+    if app_type == "system":
+        type_flags = ("-s",)
+    elif app_type == "user":
+        type_flags = ("-3",)
+
+    status_flags: tuple[str, ...] = ()
+    if status == "enabled":
+        status_flags = ("-e",)
+    elif status == "disabled":
+        status_flags = ("-d",)
+    elif status == "uninstalled":
+        status_flags = ("-u",)
+
+    selected = _pm_package_set(serial, *type_flags, *status_flags)
+
+    if status == "all" and not status_flags:
+        selected = _pm_package_set(serial, *type_flags)
+
+    system_packages = _pm_package_set(serial, "-s")
+    disabled_packages = _pm_package_set(serial, "-d")
+    uninstalled_packages = _pm_package_set(serial, "-u")
+
+    labels: dict[str, str] = {}
+    if include_labels:
+        labels = fetch_package_labels(serial, force=refresh_labels)
+
+    results: list[dict[str, str | bool]] = []
+    for pkg in sorted(selected):
+        if pkg in uninstalled_packages:
+            pkg_status = "uninstalled"
+        elif pkg in disabled_packages:
+            pkg_status = "disabled"
+        else:
+            pkg_status = "enabled"
+
+        label = labels.get(pkg) or humanize_package_name(pkg)
+        is_system = pkg in system_packages
+
+        if needle and needle not in pkg.lower() and needle not in label.lower():
+            continue
+
+        results.append(
+            {
+                "package": pkg,
+                "label": label,
+                "status": pkg_status,
+                "system": is_system,
+                "type": "system" if is_system else "user",
+            }
+        )
+
+    results.sort(key=lambda p: (str(p["label"]).lower(), str(p["package"])))
+    return results
 
 
 def package_label(serial: str, package: str) -> str:
@@ -217,6 +357,7 @@ def disable_package(serial: str, package: str, user_id: int = 0) -> str:
         package,
         serial=serial,
     )
+    invalidate_label_cache(serial)
     return (result.stdout or result.stderr or "disabled").strip()
 
 
@@ -230,6 +371,7 @@ def enable_package(serial: str, package: str, user_id: int = 0) -> str:
         package,
         serial=serial,
     )
+    invalidate_label_cache(serial)
     return (result.stdout or result.stderr or "enabled").strip()
 
 
@@ -243,7 +385,22 @@ def uninstall_package(serial: str, package: str, user_id: int = 0) -> str:
         package,
         serial=serial,
     )
+    invalidate_label_cache(serial)
     return (result.stdout or result.stderr or "ok").strip()
+
+
+def restore_package(serial: str, package: str, user_id: int = 0) -> str:
+    result = run_adb(
+        "shell",
+        "pm",
+        "install-existing",
+        "--user",
+        str(user_id),
+        package,
+        serial=serial,
+    )
+    invalidate_label_cache(serial)
+    return (result.stdout or result.stderr or "restored").strip()
 
 
 def install_apk(serial: str, apk_path: Path) -> str:

@@ -46,27 +46,44 @@
 
       <section class="card hidden" id="packages-section">
         <h2>Packages</h2>
-        <div class="row">
+        <div class="row filters">
           <label class="grow">
-            Filter
-            <input id="pkg-filter" type="search" placeholder="com.google..." />
+            Search name or package
+            <input id="pkg-filter" type="search" placeholder="YouTube, Netflix, com.google..." />
+          </label>
+          <label>
+            Status
+            <select id="status-filter">
+              <option value="all">All installed</option>
+              <option value="enabled">Enabled</option>
+              <option value="disabled">Disabled</option>
+              <option value="uninstalled">Uninstalled (kept on device)</option>
+            </select>
+          </label>
+          <label>
+            Type
+            <select id="type-filter">
+              <option value="all">All apps</option>
+              <option value="system">System apps</option>
+              <option value="user">User apps</option>
+            </select>
           </label>
           <label class="checkbox">
-            <input id="third-party" type="checkbox" />
-            User apps only
-          </label>
-          <label class="checkbox">
-            <input id="disabled-only" type="checkbox" />
-            Disabled only
+            <input id="refresh-labels" type="checkbox" />
+            Refresh app names
           </label>
           <button id="btn-load-packages" class="primary">Load packages</button>
         </div>
         <p id="pkg-count" class="muted"></p>
+        <p id="pkg-loading" class="loading hidden">Loading packages and app names — first load can take a minute…</p>
         <div class="table-wrap">
           <table id="pkg-table">
             <thead>
               <tr>
+                <th>App</th>
                 <th>Package</th>
+                <th>Type</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>

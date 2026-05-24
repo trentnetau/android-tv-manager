@@ -12,7 +12,11 @@ async function api(path, options = {}) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data.detail || data.message || res.statusText);
+    const detail = data.detail;
+    const msg = Array.isArray(detail)
+      ? detail.map((d) => d.msg).join(", ")
+      : detail || data.message || res.statusText;
+    throw new Error(msg);
   }
   return data;
 }
@@ -90,44 +94,100 @@ async function connect() {
   if (online) await selectDevice(online);
 }
 
+function statusBadge(status) {
+  const labels = {
+    enabled: "Enabled",
+    disabled: "Disabled",
+    uninstalled: "Uninstalled",
+  };
+  return `<span class="badge badge-${status}">${labels[status] || status}</span>`;
+}
+
+function typeBadge(type) {
+  const label = type === "system" ? "System" : "User";
+  return `<span class="badge badge-type">${label}</span>`;
+}
+
+function actionButtons(pkg) {
+  const buttons = [];
+  if (pkg.status === "enabled") {
+    buttons.push(`<button class="small" data-action="disable" data-pkg="${pkg.package}">Disable</button>`);
+    buttons.push(`<button class="danger" data-action="uninstall" data-pkg="${pkg.package}">Uninstall</button>`);
+  } else if (pkg.status === "disabled") {
+    buttons.push(`<button class="small" data-action="enable" data-pkg="${pkg.package}">Enable</button>`);
+    buttons.push(`<button class="danger" data-action="uninstall" data-pkg="${pkg.package}">Uninstall</button>`);
+  } else if (pkg.status === "uninstalled") {
+    buttons.push(`<button class="small" data-action="restore" data-pkg="${pkg.package}">Restore</button>`);
+  }
+  return buttons.join("");
+}
+
 async function loadPackages() {
   if (!state.serial) return;
+
   const params = new URLSearchParams();
-  if ($("third-party").checked) params.set("third_party", "true");
-  if ($("disabled-only").checked) params.set("disabled", "true");
+  params.set("status", $("status-filter").value);
+  params.set("app_type", $("type-filter").value);
   const q = $("pkg-filter").value.trim();
   if (q) params.set("q", q);
+  if ($("refresh-labels").checked) params.set("refresh_labels", "true");
 
-  const { packages, count } = await api(
-    `/api/device/${encodeURIComponent(state.serial)}/packages?${params}`
-  );
-  $("pkg-count").textContent = `${count} package(s)`;
-  const tbody = $("pkg-table").querySelector("tbody");
-  tbody.innerHTML = packages
-    .map(
-      (p) => `
+  $("btn-load-packages").disabled = true;
+  $("pkg-loading").classList.remove("hidden");
+  $("pkg-count").textContent = "";
+
+  try {
+    const { packages, count } = await api(
+      `/api/device/${encodeURIComponent(state.serial)}/packages?${params}`
+    );
+    $("pkg-count").textContent = `${count} app(s)`;
+    const tbody = $("pkg-table").querySelector("tbody");
+    if (!packages.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="muted">No packages match your filters.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = packages
+      .map(
+        (p) => `
     <tr>
-      <td><code>${p.package}</code></td>
-      <td class="actions">
-        <button class="small" data-action="disable" data-pkg="${p.package}">Disable</button>
-        <button class="small" data-action="enable" data-pkg="${p.package}">Enable</button>
-        <button class="danger" data-action="uninstall" data-pkg="${p.package}">Uninstall</button>
-      </td>
+      <td><strong>${escapeHtml(p.label)}</strong></td>
+      <td><code>${escapeHtml(p.package)}</code></td>
+      <td>${typeBadge(p.type)}</td>
+      <td>${statusBadge(p.status)}</td>
+      <td class="actions">${actionButtons(p)}</td>
     </tr>`
-    )
-    .join("");
+      )
+      .join("");
 
-  tbody.querySelectorAll("button").forEach((btn) => {
-    btn.addEventListener("click", () => packageAction(btn.dataset.action, btn.dataset.pkg));
-  });
+    tbody.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => packageAction(btn.dataset.action, btn.dataset.pkg));
+    });
+  } finally {
+    $("btn-load-packages").disabled = false;
+    $("pkg-loading").classList.add("hidden");
+  }
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 async function packageAction(action, pkg) {
   if (!state.serial) return;
-  const labels = { disable: "Disable", enable: "Enable", uninstall: "Uninstall" };
+  const labels = {
+    disable: "Disable",
+    enable: "Enable",
+    uninstall: "Uninstall",
+    restore: "Restore",
+  };
   if (!confirm(`${labels[action]} ${pkg}?`)) return;
 
-  const data = await api(`/api/package/${action}`, {
+  const endpoint = action === "restore" ? "/api/package/restore" : `/api/package/${action}`;
+  const data = await api(endpoint, {
     method: "POST",
     body: JSON.stringify({ serial: state.serial, package: pkg }),
   });
@@ -180,5 +240,9 @@ $("btn-load-packages").addEventListener("click", () =>
 );
 $("btn-install").addEventListener("click", () => installApk());
 $("btn-shell").addEventListener("click", () => runShell().catch((e) => toast(e.message, "error")));
+
+$("pkg-filter").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") loadPackages().catch((err) => toast(err.message, "error"));
+});
 
 refreshDevices().catch(() => {});
