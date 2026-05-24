@@ -120,6 +120,14 @@ def device_info(serial: str, _: None = Depends(require_auth)):
         raise HTTPException(502, str(exc)) from exc
 
 
+@app.get("/api/device/{serial}/stats")
+def device_stats(serial: str, _: None = Depends(require_auth)):
+    try:
+        return adb.device_stats(serial)
+    except adb.AdbError as exc:
+        raise HTTPException(502, str(exc)) from exc
+
+
 @app.get("/api/device/{serial}/packages")
 def packages(
     serial: str,

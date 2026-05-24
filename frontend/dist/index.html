@@ -40,8 +40,27 @@
       </section>
 
       <section class="card hidden" id="device-section">
-        <h2>Selected device</h2>
+        <div class="section-header">
+          <h2>Selected device</h2>
+          <button id="btn-refresh-stats" class="secondary">Refresh stats</button>
+        </div>
         <div id="device-info" class="info-grid"></div>
+        <div id="device-stats" class="stats-panel"></div>
+        <details id="processes-panel" class="processes-panel">
+          <summary>Processes <span id="process-summary" class="muted"></span></summary>
+          <div class="table-wrap processes-wrap">
+            <table id="process-table">
+              <thead>
+                <tr>
+                  <th>Process</th>
+                  <th>PID</th>
+                  <th>State</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </details>
       </section>
 
       <section class="card hidden" id="packages-section">
@@ -80,7 +99,6 @@
           <table id="pkg-table">
             <colgroup>
               <col class="col-app" />
-              <col class="col-package" />
               <col class="col-type" />
               <col class="col-status" />
               <col class="col-actions" />
@@ -88,7 +106,6 @@
             <thead>
               <tr>
                 <th>App</th>
-                <th>Package</th>
                 <th>Type</th>
                 <th>Status</th>
                 <th>Actions</th>

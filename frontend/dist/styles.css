@@ -261,23 +261,122 @@ button.small {
 }
 
 #pkg-table col.col-app {
-  width: 14%;
-}
-
-#pkg-table col.col-package {
-  width: 36%;
+  width: 42%;
 }
 
 #pkg-table col.col-type {
-  width: 8%;
-}
-
-#pkg-table col.col-status {
   width: 10%;
 }
 
+#pkg-table col.col-status {
+  width: 12%;
+}
+
 #pkg-table col.col-actions {
-  width: 32%;
+  width: 36%;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+.stats-panel {
+  margin-top: 1rem;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.stat-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+}
+
+.stat-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.stat-track {
+  height: 8px;
+  background: #0a0f16;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.stat-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #5aadff);
+  border-radius: 999px;
+}
+
+.process-meta,
+.foreground-app {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+}
+
+.processes-panel {
+  margin-top: 1rem;
+  font-size: 0.9rem;
+}
+
+.processes-panel summary {
+  cursor: pointer;
+  color: var(--text);
+  margin-bottom: 0.5rem;
+}
+
+.processes-wrap {
+  max-height: 280px;
+}
+
+#process-table {
+  table-layout: fixed;
+}
+
+.proc-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+}
+
+tr.proc-running td {
+  background: rgba(76, 175, 130, 0.06);
+}
+
+.col-app strong {
+  display: block;
+  font-weight: 600;
+}
+
+.pkg-id {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 table {
@@ -291,7 +390,7 @@ td {
   text-align: left;
   padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 th {
@@ -301,21 +400,11 @@ th {
   z-index: 1;
 }
 
-td code {
-  font-size: 0.8rem;
-  word-break: break-all;
-}
-
-td.col-package code {
-  display: block;
-  line-height: 1.35;
-}
-
 .actions {
   display: flex;
   gap: 0.35rem;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-start;
 }
 

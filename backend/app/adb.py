@@ -164,6 +164,122 @@ def device_info(serial: str) -> dict[str, str]:
     return info
 
 
+def _parse_meminfo_kb(output: str) -> dict[str, int]:
+    values: dict[str, int] = {}
+    for line in output.splitlines():
+        if ":" not in line:
+            continue
+        key, _, rest = line.partition(":")
+        parts = rest.split()
+        if parts and parts[0].isdigit():
+            values[key.strip()] = int(parts[0])
+    return values
+
+
+def _format_kb(kb: int) -> str:
+    if kb <= 0:
+        return "—"
+    gb = kb / (1024 * 1024)
+    if gb >= 1:
+        return f"{gb:.1f} GB"
+    return f"{kb // 1024} MB"
+
+
+def _parse_df(output: str) -> list[dict[str, str | int]]:
+    mounts: list[dict[str, str | int]] = []
+    for line in output.strip().splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 6:
+            continue
+        try:
+            total_kb = int(parts[1])
+            used_kb = int(parts[2])
+            avail_kb = int(parts[3])
+        except ValueError:
+            continue
+        mounts.append(
+            {
+                "mount": parts[-1],
+                "total_kb": total_kb,
+                "used_kb": used_kb,
+                "available_kb": avail_kb,
+                "total": _format_kb(total_kb),
+                "used": _format_kb(used_kb),
+                "available": _format_kb(avail_kb),
+                "use_percent": parts[4].rstrip("%"),
+            }
+        )
+    return mounts
+
+
+def _parse_ps(output: str, *, limit: int = 25) -> list[dict[str, str]]:
+    rows: list[dict[str, str]] = []
+    for line in output.strip().splitlines()[1:]:
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        name = parts[-1]
+        pid = parts[1]
+        stat = parts[-2] if len(parts) >= 3 else "?"
+        rows.append({"name": name, "pid": pid, "stat": stat})
+    rows.sort(key=lambda r: (0 if "R" in r["stat"] else 1, r["name"]))
+    return rows[:limit]
+
+
+def _foreground_app(serial: str) -> str | None:
+    output = shell(
+        serial,
+        "dumpsys activity activities 2>/dev/null | grep mResumedActivity | head -1",
+    )
+    match = re.search(r"(\S+)/(\S+)", output)
+    if match:
+        return match.group(1)
+    return None
+
+
+def device_stats(serial: str) -> dict:
+    mem_raw = shell(serial, "cat /proc/meminfo")
+    mem = _parse_meminfo_kb(mem_raw)
+    total_kb = mem.get("MemTotal", 0)
+    avail_kb = mem.get("MemAvailable", mem.get("MemFree", 0))
+    used_kb = max(0, total_kb - avail_kb)
+    used_pct = round((used_kb / total_kb) * 100) if total_kb else 0
+
+    df_raw = shell(serial, "df -k /data /storage/emulated/0 /sdcard 2>/dev/null || df -k /data")
+    storage = _parse_df(df_raw)
+    primary = next((s for s in storage if s["mount"] == "/data"), storage[0] if storage else None)
+
+    ps_raw = shell(serial, "ps -A 2>/dev/null")
+    processes = _parse_ps(ps_raw, limit=30)
+    process_lines = [ln for ln in ps_raw.splitlines() if ln.strip()]
+    total_processes = max(0, len(process_lines) - 1)
+    running_processes = sum(1 for p in processes if "R" in p["stat"])
+
+    foreground = _foreground_app(serial)
+
+    return {
+        "memory": {
+            "total_kb": total_kb,
+            "used_kb": used_kb,
+            "available_kb": avail_kb,
+            "total": _format_kb(total_kb),
+            "used": _format_kb(used_kb),
+            "available": _format_kb(avail_kb),
+            "used_percent": used_pct,
+        },
+        "storage": {
+            "volumes": storage,
+            "primary": primary,
+        },
+        "processes": {
+            "total": total_processes,
+            "running": running_processes,
+            "foreground_app": foreground,
+            "top": processes,
+        },
+    }
+
+
 def _parse_pkg_line(line: str) -> str | None:
     line = line.strip()
     if not line.startswith("package:"):

@@ -75,6 +75,71 @@ async function selectDevice(serial) {
   $("device-info").innerHTML = Object.entries(info)
     .map(([k, v]) => `<div><span>${k}</span>${v || "—"}</div>`)
     .join("");
+  await loadDeviceStats();
+}
+
+function statBar(label, usedPct, detail) {
+  const pct = Math.min(100, Math.max(0, Number(usedPct) || 0));
+  return `
+    <div class="stat-block">
+      <div class="stat-head">
+        <span>${label}</span>
+        <span class="muted">${detail}</span>
+      </div>
+      <div class="stat-track"><div class="stat-fill" style="width:${pct}%"></div></div>
+    </div>`;
+}
+
+function stateLabel(stat) {
+  if (stat.includes("R")) return "Running";
+  if (stat.includes("S")) return "Sleeping";
+  if (stat.includes("D")) return "Waiting";
+  if (stat.includes("Z")) return "Zombie";
+  return stat;
+}
+
+async function loadDeviceStats() {
+  if (!state.serial) return;
+  $("device-stats").innerHTML = '<p class="loading">Loading memory and storage…</p>';
+  const stats = await api(`/api/device/${encodeURIComponent(state.serial)}/stats`);
+  const mem = stats.memory;
+  const primary = stats.storage?.primary;
+  const proc = stats.processes;
+
+  let storageHtml = "";
+  if (primary) {
+    storageHtml = statBar(
+      `Storage (${primary.mount})`,
+      primary.use_percent,
+      `${primary.used} used · ${primary.available} free · ${primary.total} total`
+    );
+  }
+
+  const fg = proc.foreground_app
+    ? `<p class="muted foreground-app">Foreground app: <code>${escapeHtml(proc.foreground_app)}</code></p>`
+    : "";
+
+  $("device-stats").innerHTML = `
+    <div class="stats-grid">
+      ${statBar("Memory", mem.used_percent, `${mem.used} used · ${mem.available} free · ${mem.total} total`)}
+      ${storageHtml}
+    </div>
+    <p class="process-meta">${proc.total} processes · ${proc.running} running (active)</p>
+    ${fg}
+  `;
+
+  $("process-summary").textContent = `(${proc.total} total, ${proc.running} running)`;
+  const tbody = $("process-table").querySelector("tbody");
+  tbody.innerHTML = (proc.top || [])
+    .map(
+      (p) => `
+    <tr class="${p.stat.includes("R") ? "proc-running" : ""}">
+      <td class="proc-name" title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</td>
+      <td>${escapeHtml(p.pid)}</td>
+      <td>${stateLabel(p.stat)}</td>
+    </tr>`
+    )
+    .join("");
 }
 
 async function connect() {
@@ -143,15 +208,17 @@ async function loadPackages() {
     $("pkg-count").textContent = `${count} app(s)`;
     const tbody = $("pkg-table").querySelector("tbody");
     if (!packages.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="muted">No packages match your filters.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="4" class="muted">No packages match your filters.</td></tr>';
       return;
     }
     tbody.innerHTML = packages
       .map(
         (p) => `
-    <tr>
-      <td><strong>${escapeHtml(p.label)}</strong></td>
-      <td class="col-package"><code>${escapeHtml(p.package)}</code></td>
+    <tr title="${escapeHtml(p.package)}">
+      <td class="col-app">
+        <strong>${escapeHtml(p.label)}</strong>
+        <span class="pkg-id">${escapeHtml(p.package)}</span>
+      </td>
       <td>${typeBadge(p.type)}</td>
       <td>${statusBadge(p.status)}</td>
       <td class="actions">${actionButtons(p)}</td>
@@ -240,6 +307,9 @@ $("btn-load-packages").addEventListener("click", () =>
 );
 $("btn-install").addEventListener("click", () => installApk());
 $("btn-shell").addEventListener("click", () => runShell().catch((e) => toast(e.message, "error")));
+$("btn-refresh-stats").addEventListener("click", () =>
+  loadDeviceStats().catch((e) => toast(e.message, "error"))
+);
 
 $("pkg-filter").addEventListener("keydown", (e) => {
   if (e.key === "Enter") loadPackages().catch((err) => toast(err.message, "error"));
